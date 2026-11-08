@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>План розеток — Электропроект</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         margin: 0; background: #0f1115; color: #e6e6e6; min-height: 100vh; }
+  header { padding: 14px 24px; background: #171a21; border-bottom: 1px solid #252a34;
+           display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+  header h1 { margin: 0; font-size: 18px; color: #4fc3f7; font-weight: 600; }
+  header .subtitle { color: #8892a0; font-size: 12px; margin-left: 10px; }
+  .layout { display: grid; grid-template-columns: 1fr 340px; height: calc(100vh - 58px); }
+  .plan-area { padding: 16px; overflow: auto; background: #0f1115; }
+  .plan-area svg { background: #fff; border-radius: 8px; display: block; margin: 0 auto;
+                   box-shadow: 0 4px 24px rgba(0,0,0,0.5); max-width: 100%; height: auto; }
+  .sidebar { background: #171a21; border-left: 1px solid #252a34; overflow-y: auto; padding: 14px; }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+                   color: #8892a0; margin: 14px 0 8px; font-weight: 700; }
+  .section-title:first-child { margin-top: 0; }
+  .filter-group { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .filter-btn { padding: 4px 9px; border-radius: 4px; border: 1px solid #333a48;
+                background: #1e232d; color: #c0c8d4; font-size: 11px; cursor: pointer; }
+  .filter-btn.active { background: #4fc3f7; color: #0f1115; border-color: #4fc3f7; font-weight: 700; }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 12px; }
+  .legend-dot { width: 18px; height: 18px; border-radius: 50%; display: inline-flex;
+                align-items: center; justify-content: center; font-size: 9px; font-weight: 700;
+                color: white; font-family: monospace; flex-shrink: 0; }
+  .outlet-item { padding: 8px 10px; margin-bottom: 4px; background: #1e232d;
+                 border-radius: 4px; font-size: 12px; border-left: 3px solid #4fc3f7;
+                 cursor: pointer; }
+  .outlet-item:hover { background: #2a3140; }
+  .outlet-item .num { color: #4fc3f7; font-weight: 700; margin-right: 6px; }
+  .outlet-item .room { color: #8892a0; font-size: 11px; }
+  .outlet-item .coord { color: #6b7481; font-size: 11px; font-family: monospace; }
+  .btn { padding: 8px 14px; border-radius: 6px; border: none; background: #4fc3f7;
+         color: #0f1115; font-weight: 700; font-size: 12px; cursor: pointer; }
+  .btn:hover { background: #6dd0fa; }
+  .tooltip { position: fixed; background: rgba(15,17,21,0.97); color: #e6e6e6; padding: 10px 14px;
+             border-radius: 6px; font-size: 12px; pointer-events: none; display: none; z-index: 100;
+             border: 1px solid #333a48; box-shadow: 0 8px 24px rgba(0,0,0,0.6); max-width: 260px; }
+  .tooltip .tt-title { font-weight: 700; color: #4fc3f7; margin-bottom: 4px; }
+  .tooltip .tt-key { color: #8892a0; }
+  .room-label { font-size: 90px; fill: #9aa4b2; font-weight: 600; text-anchor: middle;
+                dominant-baseline: middle; font-family: -apple-system, sans-serif;
+                pointer-events: none; }
+  .dim-label { font-size: 68px; fill: #5a6270; font-family: monospace; text-anchor: middle; }
+  .grid-label { font-size: 80px; fill: #4a5260; font-weight: 700; text-anchor: middle;
+                dominant-baseline: middle; }
+  .outlet-symbol { cursor: pointer; transition: transform 0.15s; transform-box: fill-box;
+                   transform-origin: center; }
+  .outlet-symbol:hover { transform: scale(1.2); }
+  .outlet-id { font-size: 55px; fill: white; font-weight: 700; text-anchor: middle;
+               dominant-baseline: central; pointer-events: none; font-family: monospace; }
+  .outlet-h-label { font-size: 48px; fill: #666; text-anchor: middle;
+                    pointer-events: none; font-family: monospace; }
+  .hidden { display: none !important; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; height: auto; }
+    .sidebar { border-left: none; border-top: 1px solid #252a34; max-height: 50vh; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⚡ План розеток</h1>
+    <span class="subtitle">Двухкомнатная квартира · 8.76 × 11.42 м</span>
+  </div>
+  <button class="btn" onclick="exportSVG()">⤓ Скачать SVG</button>
+</header>
+
+<div class="layout">
+  <div class="plan-area">
+    <svg id="plan" viewBox="-700 -550 10200 12600" xmlns="http://www.w3.org/2000/svg">
+      <g id="grid-layer"></g>
+      <g id="walls-layer"></g>
+      <g id="rooms-layer"></g>
+      <g id="dims-layer"></g>
+      <g id="outlets-layer"></g>
+    </svg>
+  </div>
+
+  <aside class="sidebar">
+    <div class="section-title">Комнаты</div>
+    <div class="filter-group" id="room-filters"></div>
+
+    <div class="section-title">Тип розетки</div>
+    <div class="filter-group" id="type-filters"></div>
+
+    <div class="section-title">Легенда</div>
+    <div id="legend"></div>
+
+    <div class="section-title">Розетки (<span id="count">0</span>)</div>
+    <div id="outlet-list"></div>
+  </aside>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// =========================================================
+// 1. ДАННЫЕ ПЛАНА
+// =========================================================
+const PLAN = { W: 8760, H: 11420 };  // габариты в мм
+
+// Стены: {x1,y1,x2,y2,t,type}
+const WALLS = [
+  // --- Внешние (200 мм) ---
+  { x1: 0,    y1: 0,     x2: 8760, y2: 0,     t: 200, type: 'outer' }, // верх
+  { x1: 0,    y1: 0,     x2: 0,    y2: 11420, t: 200, type: 'outer' }, // лево
+  { x1: 8760, y1: 0,     x2: 8760, y2: 11420, t: 200, type: 'outer' }, // право
+  { x1: 0,    y1: 11420, x2: 1300, y2: 11420, t: 200, type: 'outer' }, // низ Л
+  { x1: 2200, y1: 11420, x2: 8760, y2: 11420, t: 200, type: 'outer' }, // низ П (проём двери)
+  // --- Внутренние (150 мм) ---
+  { x1: 3100, y1: 200,   x2: 3100, y2: 5700,  t: 150, type: 'inner' }, // между спальнями
+  { x1: 6260, y1: 200,   x2: 6260, y2: 5700,  t: 150, type: 'inner' }, // спальня2/кухня
+  { x1: 200,  y1: 5700,  x2: 1300, y2: 5700,  t: 150, type: 'inner' }, // гор. стена
+  { x1: 2200, y1: 5700,  x2: 3500, y2: 5700,  t: 150, type: 'inner' }, // (проём в спальню1)
+  { x1: 4300, y1: 5700,  x2: 5000, y2: 5700,  t: 150, type: 'inner' }, // (проём в спальню2)
+  { x1: 5800, y1: 5700,  x2: 8760, y2: 5700,  t: 150, type: 'inner' }, // стена кухни
+  { x1: 3100, y1: 5850,  x2: 3100, y2: 8000,  t: 150, type: 'inner' }, // коридор/гостиная
+  { x1: 3100, y1: 8900,  x2: 3100, y2: 11200, t: 150, type: 'inner' }, // (проём)
+  { x1: 2450, y1: 5850,  x2: 2450, y2: 8500,  t: 150, type: 'inner' }, // санузел/коридор
+  { x1: 2450, y1: 9400,  x2: 2450, y2: 11200, t: 150, type: 'inner' }, // (проём)
+];
+
+// Комнаты (для подписи)
+const ROOMS = [
+  { name: 'Спальня 1', x: 200,  y: 200,  w: 2850, h: 5450 },
+  { name: 'Спальня 2', x: 3150, y: 200,  w: 3050, h: 5450 },
+  { name: 'Кухня',     x: 6300, y: 200,  w: 2260, h: 5450 },
+  { name: 'Санузел',   x: 200,  y: 5850, w: 2200, h: 4950 },
+  { name: 'Коридор',   x: 2500, y: 5850, w: 550,  h: 5350 },
+  { name: 'Гостиная',  x: 3150, y: 5850, w: 5410, h: 5350 },
+];
+
+// Типы розеток
+const TYPES = {
+  schuko: { label: 'Schuko',            color: '#e74c3c', letter: 'S'  },
+  usb:    { label: 'Schuko + USB',      color: '#9b59b6', letter: 'U'  },
+  rj45:   { label: 'RJ45 (интернет)',   color: '#3498db', letter: 'I'  },
+  power:  { label: 'Силовая линия',     color: '#f39c12', letter: 'P'  },
+  ip44:   { label: 'IP44 (влажная)',    color: '#1abc9c', letter: 'IP' },
+};
+
+// ⚡ РОЗЕТКИ: x,y — от левого верхнего угла плана в мм; h — высота от пола в см
+const OUTLETS = [
+  // --- Спальня 1 ---
+  { id: 1,  room: 'Спальня 1', type: 'schuko', x: 700,  y: 200,  h: 65,  desc: 'Прикроватная (левая тумба)' },
+  { id: 2,  room: 'Спальня 1', type: 'schuko', x: 1600, y: 200,  h: 65,  desc: 'Прикроватная (правая тумба)' },
+  { id: 3,  room: 'Спальня 1', type: 'usb',    x: 2950, y: 2200, h: 75,  desc: 'Рабочий стол (2× + USB)' },
+  { id: 4,  room: 'Спальня 1', type: 'schuko', x: 2950, y: 1000, h: 120, desc: 'ТВ-зона (за телевизором)' },
+  { id: 5,  room: 'Спальня 1', type: 'schuko', x: 200,  y: 4500, h: 30,  desc: 'Запасная (пылесос/утюг)' },
+  // --- Спальня 2 ---
+  { id: 6,  room: 'Спальня 2', type: 'schuko', x: 3800, y: 200,  h: 65,  desc: 'Прикроватная (левая)' },
+  { id: 7,  room: 'Спальня 2', type: 'schuko', x: 4900, y: 200,  h: 65,  desc: 'Прикроватная (правая)' },
+  { id: 8,  room: 'Спальня 2', type: 'usb',    x: 6100, y: 2000, h: 75,  desc: 'Рабочий стол (2× + USB)' },
+  { id: 9,  room: 'Спальня 2', type: 'schuko', x: 4000, y: 5600, h: 30,  desc: 'Запасная у стены' },
+  // --- Кухня ---
+  { id: 10, room: 'Кухня',     type: 'schuko', x: 6800, y: 200,  h: 110, desc: 'Фартук: чайник/кофемашина' },
+  { id: 11, room: 'Кухня',     type: 'schuko', x: 7300, y: 200,  h: 110, desc: 'Фартук: микроволновка' },
+  { id: 12, room: 'Кухня',     type: 'schuko', x: 7800, y: 200,  h: 110, desc: 'Фартук: блендер/миксер' },
+  { id: 13, room: 'Кухня',     type: 'usb',    x: 8300, y: 200,  h: 110, desc: 'Фартук: мультиварка + USB' },
+  { id: 14, room: 'Кухня',     type: 'power',  x: 6600, y: 200,  h: 15,  desc: 'Холодильник (отдельная линия)' },
+  { id: 15, room: 'Кухня',     type: 'power',  x: 8460, y: 3200, h: 15,  desc: 'Плита/духовка (силовая)' },
+  { id: 16, room: 'Кухня',     type: 'power',  x: 8460, y: 4500, h: 15,  desc: 'Посудомоечная машина' },
+  { id: 17, room: 'Кухня',     type: 'schuko', x: 7200, y: 5650, h: 30,  desc: 'Обеденный стол' },
+  // --- Гостиная ---
+  { id: 18, room: 'Гостиная',  type: 'schuko', x: 3400, y: 5900, h: 120, desc: 'ТВ-зона (слева)' },
+  { id: 19, room: 'Гостиная',  type: 'schuko', x: 4000, y: 5900, h: 120, desc: 'ТВ-зона (справа)' },
+  { id: 20, room: 'Гостиная',  type: 'rj45',   x: 3700, y: 5900, h: 120, desc: 'Интернет (RJ45)' },
+  { id: 21, room: 'Гостиная',  type: 'schuko', x: 3300, y: 8500, h: 30,  desc: 'У дивана (левая)' },
+  { id: 22, room: 'Гостиная',  type: 'usb',    x: 3300, y: 9500, h: 30,  desc: 'У дивана (USB)' },
+  { id: 23, room: 'Гостиная',  type: 'schuko', x: 8460, y: 8000, h: 30,  desc: 'Свободная стена (справа)' },
+  { id: 24, room: 'Гостиная',  type: 'schuko', x: 6000, y: 11200, h: 30, desc: 'У окна/балконной двери' },
+  // --- Санузел ---
+  { id: 25, room: 'Санузел',   type: 'ip44',   x: 400,  y: 6000,  h: 110, desc: 'У зеркала (фен)' },
+  { id: 26, room: 'Санузел',   type: 'ip44',   x: 400,  y: 10200, h: 90,  desc: 'Стиральная машина' },
+  { id: 27, room: 'Санузел',   type: 'ip44',   x: 2200, y: 7000,  h: 90,  desc: 'Унитаз/биде' },
+  // --- Коридор ---
+  { id: 28, room: 'Коридор',   type: 'schuko', x: 2600, y: 10500, h: 30,  desc: 'У входа (пылесос)' },
+  { id: 29, room: 'Коридор',   type: 'schuko', x: 2900, y: 8000,  h: 30,  desc: 'У зеркала в коридоре' },
+];
+
+// =========================================================
+// 2. УТИЛИТЫ SVG
+// =========================================================
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('plan');
+
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+// =========================================================
+// 3. ОТРИСОВКА СТЕН
+// =========================================================
+const wallsLayer = document.getElementById('walls-layer');
+WALLS.forEach(w => {
+  el('line', {
+    x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2,
+    stroke: w.type === 'outer' ? '#1a1d24' : '#4a5260',
+    'stroke-width': w.t,
+    'stroke-linecap': 'square',
+    fill: 'none'
+  }, wallsLayer);
+});
+
+// =========================================================
+// 4. КОМНАТЫ + ПОДПИСИ
+// =========================================================
+const roomsLayer = document.getElementById('rooms-layer');
+ROOMS.forEach(r => {
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  el('text', { x: cx, y: cy, class: 'room-label' }, roomsLayer).textContent = r.name;
+});
+
+// =========================================================
+// 5. РАЗМЕРЫ (габаритные)
+// =========================================================
+const dims = document.getElementById('dims-layer');
+const C = '#4fc3f7', LW = 15;
+
+// Сверху
+const topDims = [
+  { x1: 0,    x2: 2460, label: '2460' },
+  { x1: 2460, x2: 3100, label: '640'  },
+  { x1: 3100, x2: 6260, label: '3160' },
+  { x1: 6260, x2: 8760, label: '2500' },
+];
+const dimY = -250;
+topDims.forEach(d => {
+  el('line', { x1: d.x1, y1: dimY, x2: d.x2, y2: dimY, stroke: C, 'stroke-width': LW }, dims);
+  el('line', { x1: d.x1, y1: dimY - 40, x2: d.x1, y2: dimY + 40, stroke: C, 'stroke-width': LW }, dims);
+  el('line', { x1: d.x2, y1: dimY - 40, x2: d.x2, y2: dimY + 40, stroke: C, 'stroke-width': LW }, dims);
+  el('text', { x: (d.x1 + d.x2) / 2, y: dimY - 70, class: 'dim-label' }, dims).textContent = d.label;
+});
+el('line', { x1: 0, y1: dimY - 150, x2: 8760, y2: dimY - 150, stroke: C, 'stroke-width': LW }, dims);
+el('text', { x: 4380, y: dimY - 220, class: 'dim-label' }, dims).textContent = '8760';
+
+// Слева
+const leftDims = [
+  { y1: 0,    y2: 5700,  label: '5700' },
+  { y1: 5700, y2: 11420, label: '5720' },
+];
+const dimX = -350;
+leftDims.forEach(d => {
+  el('line', { x1: dimX, y1: d.y1, x2: dimX, y2: d.y2, stroke: C, 'stroke-width': LW }, dims);
+  el('line', { x1: dimX - 40, y1: d.y1, x2: dimX + 40, y2: d.y1, stroke: C, 'stroke-width': LW }, dims);
+  el('line', { x1: dimX - 40, y1: d.y2, x2: dimX + 40, y2: d.y2, stroke: C, 'stroke-width': LW }, dims);
+  const cy = (d.y1 + d.y2) / 2;
+  const t = el('text', { x: dimX - 100, y: cy, class: 'dim-label',
+                         transform: `rotate(-90 ${dimX - 100} ${cy})` }, dims);
+  t.textContent = d.label;
+});
+
+// Осевые линии (сетка 1-5, A-B)
+const grid = document.getElementById('grid-layer');
+[0, 2460, 3100, 6260, 8760].forEach((x, i) => {
+  el('line', { x1: x, y1: -300, x2: x, y2: 11700, stroke: C, 'stroke-width': 8,
+               'stroke-dasharray': '60 50', opacity: 0.25 }, grid);
+  el('circle', { cx: x, cy: 11830, r: 110, fill: C, opacity: 0.15 }, grid);
+  el('text', { x: x, y: 11860, class: 'grid-label' }, grid).textContent = i + 1;
+});
+[0, 5700, 11420].forEach((y, i) => {
+  el('line', { x1: -300, y1: y, x2: 9060, y2: y, stroke: C, 'stroke-width': 8,
+               'stroke-dasharray': '60 50', opacity: 0.25 }, grid);
+  const letters = ['A', 'B', ''];
+  if (letters[i]) {
+    el('circle', { cx: -450, cy: y, r: 110, fill: C, opacity: 0.15 }, grid);
+    el('text', { x: -450, y: y + 30, class: 'grid-label' }, grid).textContent = letters[i];
+  }
+});
+
+// =========================================================
+// 6. РОЗЕТКИ
+// =========================================================
+const outletsLayer = document.getElementById('outlets-layer');
+const visible = new Set(OUTLETS.map(o => o.id));
+
+function renderOutlets() {
+  outletsLayer.innerHTML = '';
+  OUTLETS.forEach(o => {
+    if (!visible.has(o.id)) return;
+    const t = TYPES[o.type];
+    const g = el('g', { class: 'outlet-symbol', 'data-id': o.id }, outletsLayer);
+
+    el('circle', { cx: o.x, cy: o.y, r: 130, fill: t.color,
+                   stroke: 'white', 'stroke-width': 22 }, g);
+    el('text', { x: o.x, y: o.y + 5, class: 'outlet-id' }, g).textContent = t.letter;
+
+    // Бейдж с ID
+    el('circle', { cx: o.x + 105, cy: o.y - 105, r: 55, fill: '#0f1115',
+                   stroke: 'white', 'stroke-width': 12 }, g);
+    el('text', { x: o.x + 105, y: o.y - 88, 'font-size': 52, fill: 'white',
+                 'text-anchor': 'middle', 'font-weight': 700,
+                 'font-family': 'monospace' }, g).textContent = o.id;
+
+    // Высота
+    el('text', { x: o.x, y: o.y + 225, class: 'outlet-h-label' }, g).textContent = `h=${o.h}`;
+
+    g.addEventListener('mouseenter', e => showTip(e, o));
+    g.addEventListener('mousemove', moveTip);
+    g.addEventListener('mouseleave', hideTip);
+  });
+}
+renderOutlets();
+
+// =========================================================
+// 7. TOOLTIP
+// =========================================================
+const tip = document.getElementById('tooltip');
+function showTip(e, o) {
+  const t = TYPES[o.type];
+  tip.innerHTML = `
+    <div class="tt-title">#${o.id} · ${o.room}</div>
+    <div><span class="tt-key">Тип:</span> ${t.label}</div>
+    <div><span class="tt-key">Назначение:</span> ${o.desc}</div>
+    <div><span class="tt-key">Координаты:</span> X=${o.x}, Y=${o.y} мм</div>
+    <div><span class="tt-key">Высота от пола:</span> <b>${o.h} см</b></div>`;
+  tip.style.display = 'block';
+  moveTip(e);
+}
+function moveTip(e) {
+  tip.style.left = (e.clientX + 15) + 'px';
+  tip.style.top = (e.clientY + 15) + 'px';
+}
+function hideTip() { tip.style.display = 'none'; }
+
+// =========================================================
+// 8. ФИЛЬТРЫ
+// =========================================================
+const activeRooms = new Set(ROOMS.map(r => r.name));
+const activeTypes = new Set(Object.keys(TYPES));
+
+function buildFilters() {
+  const rf = document.getElementById('room-filters');
+  ROOMS.forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'filter-btn active';
+    b.textContent = r.name;
+    b.onclick = () => { toggle(activeRooms, r.name, b); apply(); };
+    rf.appendChild(b);
+  });
+  const tf = document.getElementById('type-filters');
+  Object.entries(TYPES).forEach(([k, t]) => {
+    const b = document.createElement('button');
+    b.className = 'filter-btn active';
+    b.textContent = t.label;
+    b.onclick = () => { toggle(activeTypes, k, b); apply(); };
+    tf.appendChild(b);
+  });
+}
+function toggle(set, key, btn) {
+  if (set.has(key)) { set.delete(key); btn.classList.remove('active'); }
+  else               { set.add(key);    btn.classList.add('active'); }
+}
+function apply() {
+  visible.clear();
+  OUTLETS.forEach(o => {
+    if (activeRooms.has(o.room) && activeTypes.has(o.type)) visible.add(o.id);
+  });
+  renderOutlets();
+  renderList();
+}
+buildFilters();
+
+// =========================================================
+// 9. ЛЕГЕНДА
+// =========================================================
+const legend = document.getElementById('legend');
+Object.values(TYPES).forEach(t => {
+  const d = document.createElement('div');
+  d.className = 'legend-item';
+  d.innerHTML = `<div class="legend-dot" style="background:${t.color}">${t.letter}</
